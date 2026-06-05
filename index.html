@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BASICO | Plan Fakt PRO</title>
+<title>Plan Fakt PRO</title>
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 *{box-sizing:border-box}
@@ -43,7 +43,7 @@ th{background:#f8fafc}
 
 <header>
 <div>
-<div class="logo">💼 BASICO — Plan Fakt PRO</div>
+<div class="logo">💼Plan Fakt PRO</div>
 <div class="sub">📊 Oylik xarajatlar • 💳 Hisob raqamlar • 📅 To‘lov kalendari • ✅ Plan/Fakt analiz</div>
 </div>
 <div>📅 <b id="today"></b></div>
@@ -163,43 +163,12 @@ th{background:#f8fafc}
 </section>
 
 <script>
-let db=JSON.parse(localStorage.getItem("basicoPlanFaktPRO"))||{
+let db=JSON.parse(localStorage.getItem("PlanFaktPRO"))||{
 items:[],
 categories:[
-"📈 Savdo tushumi",
-"💰 Boshqa tushumlar",
-"🏭 Xom ashyo to‘lovlari",
-"🚚 Dostavka to‘lovlari",
-"💵 Ish haqi to‘lovlari",
-"👷 Ishchilarga boshqa xarajatlar",
-"🧹 Xo‘jalik mollari",
-"🦺 Maxsus kiyimlar",
-"🍽️ Oziq-ovqatlar",
-"🖥️ Ofis inventarlari",
-"🏢 Ijara to‘lovlari",
-"💡 Kommunal to‘lovlari",
-"⛽ Yoqilg‘i xarajatlari",
-"📞 Uztelekom, internet va aloqa to‘lovlari",
-"📢 Marketing va reklama",
-"🏦 Bank xizmatlari",
-"⚙️ Dastgoh xarajatlari",
-"🏗️ Binoga xarajatlar",
-"🚛 Transport texnik xarajatlari",
-"🛣️ Yo‘lkira xarajatlari",
-"🎮 Ko‘ngilochar o‘yinlarga",
-"🅿️ Stoyanka pullari",
-"📄 Lizing",
-"🤲 Ehson",
-"📌 Boshqa xarajatlar",
-"📑 Boshqa soliqlar",
-"💸 Dividend",
-"🛡️ Zaxira",
-"🔄 999 Hisob-raqamlar almashinuvi",
-"🏛️ Soliq",
-"🏭➕ Asosiy vositani sotib olish",
-"🏭➖ Asosiy vositani sotib yuborish"
+"💰 Boshqa tushumlar"
 ],
-accounts:["💵 Naqd","🏦 Bank","💳 Plastik","💵🇺🇸 USD"]
+accounts:["💵 Naqd","🏦 Bank","💳 Plastik","💵💲 USD"]
 };
 
 const el=id=>document.getElementById(id);
@@ -210,7 +179,7 @@ el("month").value=new Date().toISOString().slice(0,7);
 el("filterMonth").value=new Date().toISOString().slice(0,7);
 el("calMonth").value=new Date().toISOString().slice(0,7);
 
-function save(){localStorage.setItem("basicoPlanFaktPRO",JSON.stringify(db))}
+function save(){localStorage.setItem("PlanFaktPRO",JSON.stringify(db))}
 function money(n){return Number(n||0).toLocaleString("uz-UZ")+" so'm"}
 
 function show(id,btn){
@@ -347,7 +316,7 @@ if(v){db.accounts[i]=v.trim();save();render();}
 function deleteAccount(i){
 if(confirm("Hisob raqam o‘chirilsinmi?")){db.accounts.splice(i,1);save();render();}
 }
-function clearAll(){if(confirm("Hammasi o‘chsinmi?")){localStorage.removeItem("basicoPlanFaktPRO");location.reload()}}
+function clearAll(){if(confirm("Hammasi o‘chsinmi?")){localStorage.removeItem("PlanFaktPRO");location.reload()}}
 render();
 </script>
 </body>
