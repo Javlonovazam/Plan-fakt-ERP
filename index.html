@@ -238,11 +238,41 @@ function normalizeMonth(value, dateValue){
   return "";
 }
 
+function cleanKey(key){
+  return String(key || "")
+    .toLowerCase()
+    .replace(/[’‘`']/g, "")
+    .replace(/ё/g, "yo")
+    .replace(/ў/g, "o")
+    .replace(/қ/g, "q")
+    .replace(/ғ/g, "g")
+    .replace(/ҳ/g, "h")
+    .replace(/\s+/g, "")
+    .trim();
+}
+
 function pick(obj, keys, fallback=""){
+  if (!obj) return fallback;
+
   for (const key of keys) {
-    if (obj && obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
+    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
   }
+
+  const normalized = {};
+  Object.keys(obj).forEach(k => normalized[cleanKey(k)] = obj[k]);
+
+  for (const key of keys) {
+    const nk = cleanKey(key);
+    if (normalized[nk] !== undefined && normalized[nk] !== null && normalized[nk] !== "") return normalized[nk];
+  }
+
   return fallback;
+}
+
+function itemAmount(x){
+  const fact = toNumber(x.fact);
+  const plan = toNumber(x.plan);
+  return fact > 0 ? fact : plan;
 }
 
 function normalizeItem(raw){
@@ -428,8 +458,9 @@ async function delItem(id){
 function filtered(){
   return db.items.filter(x=>{
     let ok=true;
+    const selectedMonth = el("filterMonth").value;
     const itemMonth = normalizeMonth(x.month, x.date);
-    if(el("filterMonth").value) ok = ok && itemMonth === el("filterMonth").value;
+    if(selectedMonth) ok = ok && (itemMonth === selectedMonth || !itemMonth);
     if(el("filterCategory").value!="Hammasi") ok = ok && x.category == el("filterCategory").value;
     if(el("filterAccount").value!="Hammasi") ok = ok && x.account == el("filterAccount").value;
     if(el("filterStatus").value!="Hammasi") ok = ok && x.status == el("filterStatus").value;
@@ -494,15 +525,15 @@ function render(){
 
   el("topCosts").innerHTML = db.items
     .slice()
-    .sort((a,b)=>toNumber(b.fact)-toNumber(a.fact))
-    .slice(0,7)
-    .map(x=>`<tr><td>${x.name||"-"}</td><td>${money(x.fact)}</td></tr>`)
-    .join("");
+    .sort((a,b)=>itemAmount(b)-itemAmount(a))
+    .slice(0,10)
+    .map(x=>`<tr><td>${x.name||"-"}<br><span class="small">${x.category||""} • ${x.account||""}</span></td><td><b>${money(itemAmount(x))}</b><br><span class="small">Plan: ${money(x.plan)} | Fakt: ${money(x.fact)}</span></td></tr>`)
+    .join("") || `<tr><td>Ma’lumot yo‘q</td><td>${money(0)}</td></tr>`;
 
   el("lateCosts").innerHTML = db.items
     .filter(x=>x.status=="Kechikdi")
-    .map(x=>`<tr><td>${normalizeDate(x.date)} — ${x.name||""}</td><td>${money(x.plan)}</td></tr>`)
-    .join("");
+    .map(x=>`<tr><td>${normalizeDate(x.date)} — ${x.name||""}<br><span class="small">${x.category||""} • ${x.account||""}</span></td><td><b>${money(itemAmount(x))}</b><br><span class="small">Plan: ${money(x.plan)} | Fakt: ${money(x.fact)}</span></td></tr>`)
+    .join("") || `<tr><td>Kechikkan to‘lov yo‘q</td><td>${money(0)}</td></tr>`;
 
   renderSettings();
   renderCalendar();
@@ -510,7 +541,7 @@ function render(){
   let cat={};
   db.items.forEach(x=>{
     const category = x.category || "Kategoriya yo‘q";
-    cat[category] = (cat[category] || 0) + toNumber(x.fact);
+    cat[category] = (cat[category] || 0) + itemAmount(x);
   });
 
   if(mainChart) mainChart.destroy();
