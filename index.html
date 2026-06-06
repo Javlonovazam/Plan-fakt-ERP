@@ -164,7 +164,6 @@ th{background:#f8fafc}
 
 <script>
 const API_URL = "https://script.google.com/macros/s/AKfycbx7AnivVbF5lljMCteSuuzbame9lNvlWzeyv7G052gFLXISz9dtaM6O2xFGLSzckFd-/exec";
-const GOOGLE_SHEET_URL = "https://docs.google.com/spreadsheets/d/1Bu7KmLqsh0vle0C9TjpdC1rAdN44KoFHZ0-WPWVm09E/edit?usp=sharing";
 
 let db = {
   items: [],
@@ -180,119 +179,75 @@ el("month").value = new Date().toISOString().slice(0,7);
 el("filterMonth").value = new Date().toISOString().slice(0,7);
 el("calMonth").value = new Date().toISOString().slice(0,7);
 
-function money(n){
-  return Number(n || 0).toLocaleString("uz-UZ") + " so'm";
+function money(n){ return Number(toNumber(n)).toLocaleString("uz-UZ") + " so'm"; }
+
+function toNumber(v){
+  if(v === null || v === undefined || v === "") return 0;
+  if(typeof v === "number") return v;
+  return Number(String(v).replace(/\s/g,"").replace(/,/g,"").replace(/[^\d.-]/g,"")) || 0;
 }
 
-function toNumber(value){
-  if (value === null || value === undefined || value === "") return 0;
-  if (typeof value === "number") return value;
-  let s = String(value)
-    .replace(/\s/g, "")
-    .replace(/,/g, ".")
-    .replace(/[^\d.-]/g, "");
-  let n = Number(s);
-  return isNaN(n) ? 0 : n;
+function cleanText(v){
+  return String(v ?? "").trim();
 }
 
-function normalizeDate(value){
-  if (!value) return "";
-  if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
+function normalizeDate(v){
+  if(!v) return "";
+  if(v instanceof Date && !isNaN(v)) return v.toISOString().slice(0,10);
+  let s = String(v).trim();
 
-  let s = String(value).trim();
+  if(/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
 
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0,10);
-
-  let dm = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
-  if (dm) {
-    return `${dm[3]}-${String(dm[2]).padStart(2,"0")}-${String(dm[1]).padStart(2,"0")}`;
+  let m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{4})/);
+  if(m){
+    return `${m[3]}-${String(m[2]).padStart(2,"0")}-${String(m[1]).padStart(2,"0")}`;
   }
 
   let d = new Date(s);
-  if (!isNaN(d)) return d.toISOString().slice(0,10);
+  if(!isNaN(d)) return d.toISOString().slice(0,10);
 
   return s;
 }
 
-function normalizeMonth(value, dateValue){
-  if (value) {
-    if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,7);
+function normalizeMonth(v, dateValue){
+  if(v && /^\d{4}-\d{2}$/.test(String(v).trim())) return String(v).trim();
+  if(v && /^\d{4}-\d{2}-\d{2}/.test(String(v).trim())) return String(v).trim().slice(0,7);
 
-    let s = String(value).trim();
+  let s = String(v ?? "").trim();
+  let m = s.match(/^(\d{1,2})[./-](\d{4})$/);
+  if(m) return `${m[2]}-${String(m[1]).padStart(2,"0")}`;
 
-    if (/^\d{4}-\d{2}/.test(s)) return s.slice(0,7);
+  let d = normalizeDate(dateValue || v);
+  if(/^\d{4}-\d{2}-\d{2}$/.test(d)) return d.slice(0,7);
 
-    let ym = s.match(/^(\d{4})[./-](\d{1,2})$/);
-    if (ym) return `${ym[1]}-${String(ym[2]).padStart(2,"0")}`;
+  return s;
+}
 
-    let my = s.match(/^(\d{1,2})[./-](\d{4})$/);
-    if (my) return `${my[2]}-${String(my[1]).padStart(2,"0")}`;
-
-    let d = new Date(s);
-    if (!isNaN(d)) return d.toISOString().slice(0,7);
+function getVal(obj, keys){
+  for(const k of keys){
+    if(obj && obj[k] !== undefined && obj[k] !== null && obj[k] !== "") return obj[k];
   }
-
-  let nd = normalizeDate(dateValue);
-  if (/^\d{4}-\d{2}/.test(nd)) return nd.slice(0,7);
-
   return "";
 }
 
-function cleanKey(key){
-  return String(key || "")
-    .toLowerCase()
-    .replace(/[’‘`']/g, "")
-    .replace(/ё/g, "yo")
-    .replace(/ў/g, "o")
-    .replace(/қ/g, "q")
-    .replace(/ғ/g, "g")
-    .replace(/ҳ/g, "h")
-    .replace(/\s+/g, "")
-    .trim();
-}
-
-function pick(obj, keys, fallback=""){
-  if (!obj) return fallback;
-
-  for (const key of keys) {
-    if (obj[key] !== undefined && obj[key] !== null && obj[key] !== "") return obj[key];
-  }
-
-  const normalized = {};
-  Object.keys(obj).forEach(k => normalized[cleanKey(k)] = obj[k]);
-
-  for (const key of keys) {
-    const nk = cleanKey(key);
-    if (normalized[nk] !== undefined && normalized[nk] !== null && normalized[nk] !== "") return normalized[nk];
-  }
-
-  return fallback;
-}
-
-function itemAmount(x){
-  const fact = toNumber(x.fact);
-  const plan = toNumber(x.plan);
-  return fact > 0 ? fact : plan;
-}
-
 function normalizeItem(raw){
-  const date = normalizeDate(pick(raw, ["date","Sana","sana"]));
-  const month = normalizeMonth(pick(raw, ["month","Oy","oy"]), date);
-
+  const date = normalizeDate(getVal(raw, ["date","Date","Sana","sana"]));
+  const month = normalizeMonth(getVal(raw, ["month","Month","Oy","oy"]), date);
+  const id = cleanText(getVal(raw, ["id","ID","Id"])) || ("ID-" + Date.now() + "-" + Math.random().toString(36).slice(2,8));
   return {
-    id: String(pick(raw, ["id","ID","Id"], "ID-" + Date.now() + "-" + Math.floor(Math.random()*100000))),
-    date: date,
-    month: month,
-    name: String(pick(raw, ["name","Izoh","izoh","To‘lov nomi","Tolov nomi"], "")),
-    category: String(pick(raw, ["category","Kategoriya","kategoriya"], "")),
-    account: String(pick(raw, ["account","Hisob raqam","hisob","hisob raqam"], "")),
-    currency: String(pick(raw, ["currency","Valyuta","valyuta"], "UZS")),
-    rate: toNumber(pick(raw, ["rate","Kurs","kurs"], 1)) || 1,
-    plan: toNumber(pick(raw, ["plan","Plan","Plan summa","plan summa"], 0)),
-    fact: toNumber(pick(raw, ["fact","Fakt","Fakt summa","fakt summa"], 0)),
-    status: String(pick(raw, ["status","Status"], "Rejada")),
-    comment: String(pick(raw, ["comment","Qo‘shimcha izoh","Qoshimcha izoh","qo‘shimcha izoh"], "")),
-    createdAt: String(pick(raw, ["createdAt","Yaratilgan vaqt","yaratilgan vaqt"], ""))
+    id,
+    date,
+    month,
+    name: cleanText(getVal(raw, ["name","Name","Izoh","izoh","To'lov nomi","To‘lov nomi"])),
+    category: cleanText(getVal(raw, ["category","Category","Kategoriya","kategoriya"])) || db.categories[0],
+    account: cleanText(getVal(raw, ["account","Account","Hisob raqam","hisob","hisob raqam"])) || db.accounts[0],
+    currency: cleanText(getVal(raw, ["currency","Currency","Valyuta","valyuta"])) || "UZS",
+    rate: toNumber(getVal(raw, ["rate","Rate","Kurs","kurs"])) || 1,
+    plan: toNumber(getVal(raw, ["plan","Plan","Plan summa","plan summa"])),
+    fact: toNumber(getVal(raw, ["fact","Fact","Fakt","Fakt summa","fakt summa"])),
+    status: cleanText(getVal(raw, ["status","Status"])) || "Rejada",
+    comment: cleanText(getVal(raw, ["comment","Comment","Qo‘shimcha izoh","Qo'shimcha izoh","qoshimcha izoh"])),
+    createdAt: cleanText(getVal(raw, ["createdAt","Yaratilgan vaqt","created_at"])) || ""
   };
 }
 
@@ -304,12 +259,17 @@ function show(id,btn){
   render();
 }
 
-function jsonp(action, params = {}){
+function jsonp(action, params = {}) {
   return new Promise((resolve, reject) => {
     const callbackName = "gsCallback_" + Date.now() + "_" + Math.floor(Math.random() * 100000);
     const script = document.createElement("script");
+    const timer = setTimeout(() => {
+      try { delete window[callbackName]; script.remove(); } catch(e){}
+      reject(new Error("Google Sheets javob bermadi"));
+    }, 12000);
 
-    window[callbackName] = function(data){
+    window[callbackName] = function (data) {
+      clearTimeout(timer);
       resolve(data);
       delete window[callbackName];
       script.remove();
@@ -323,6 +283,7 @@ function jsonp(action, params = {}){
     Object.keys(params).forEach(key => url.searchParams.set(key, params[key]));
 
     script.onerror = () => {
+      clearTimeout(timer);
       delete window[callbackName];
       script.remove();
       reject(new Error("Google Sheets bilan aloqa bo‘lmadi"));
@@ -333,7 +294,7 @@ function jsonp(action, params = {}){
   });
 }
 
-function postToSheet(action, data = {}){
+function postToSheet(action, data = {}) {
   const body = new URLSearchParams();
   body.append("action", action);
   body.append("payload", JSON.stringify(data));
@@ -341,45 +302,49 @@ function postToSheet(action, data = {}){
   return fetch(API_URL, {
     method: "POST",
     mode: "no-cors",
-    headers: {"Content-Type": "application/x-www-form-urlencoded;charset=UTF-8"},
+    headers: {"Content-Type":"application/x-www-form-urlencoded;charset=UTF-8"},
     body
   });
 }
 
-async function loadItems(){
+async function loadFromSheets() {
   try {
     const res = await jsonp("get");
 
-    if (!res || res.status !== "ok") {
+    if (res && res.status === "ok") {
+      const sheetDb = res.db ? res.db : res;
+
+      const items = Array.isArray(sheetDb.items) ? sheetDb.items : [];
+      db.items = items.map(normalizeItem).filter(x => x.id || x.name || x.plan || x.fact);
+
+      if(Array.isArray(sheetDb.categories) && sheetDb.categories.length){
+        db.categories = sheetDb.categories.map(cleanText).filter(Boolean);
+      }
+      if(Array.isArray(sheetDb.accounts) && sheetDb.accounts.length){
+        db.accounts = sheetDb.accounts.map(cleanText).filter(Boolean);
+      }
+
+      db.items.forEach(x => {
+        if(x.category && !db.categories.includes(x.category)) db.categories.push(x.category);
+        if(x.account && !db.accounts.includes(x.account)) db.accounts.push(x.account);
+      });
+
+      render();
+    } else {
       console.error("Google Sheets javobi noto‘g‘ri:", res);
       alert("Google Sheetsdan ma’lumot yuklanmadi. Apps Script javobi noto‘g‘ri.");
-      return;
     }
-
-    const sheetDb = res.db ? res.db : res;
-
-    db.items = Array.isArray(sheetDb.items) ? sheetDb.items.map(normalizeItem) : [];
-
-    db.categories = Array.isArray(sheetDb.categories) && sheetDb.categories.length
-      ? sheetDb.categories.map(String)
-      : db.categories;
-
-    db.accounts = Array.isArray(sheetDb.accounts) && sheetDb.accounts.length
-      ? sheetDb.accounts.map(String)
-      : db.accounts;
-
-    render();
   } catch (err) {
     console.error(err);
-    alert("Google Sheetsdan ma’lumot yuklanmadi. Apps Script deploy va URL to‘g‘ri ekanini tekshiring.");
+    alert("Google Sheetsdan ma’lumot yuklanmadi. Apps Script deploy to‘g‘ri qilinganini tekshiring.");
   }
 }
 
 function loadSelects(){
-  el("category").innerHTML = db.categories.map(x=>`<option>${x}</option>`).join("");
-  el("account").innerHTML = db.accounts.map(x=>`<option>${x}</option>`).join("");
-  el("filterCategory").innerHTML = '<option>Hammasi</option>' + db.categories.map(x=>`<option>${x}</option>`).join("");
-  el("filterAccount").innerHTML = '<option>Hammasi</option>' + db.accounts.map(x=>`<option>${x}</option>`).join("");
+  el("category").innerHTML=db.categories.map(x=>`<option>${x}</option>`).join("");
+  el("account").innerHTML=db.accounts.map(x=>`<option>${x}</option>`).join("");
+  el("filterCategory").innerHTML='<option>Hammasi</option>'+db.categories.map(x=>`<option>${x}</option>`).join("");
+  el("filterAccount").innerHTML='<option>Hammasi</option>'+db.accounts.map(x=>`<option>${x}</option>`).join("");
 }
 
 async function addItem(){
@@ -396,9 +361,9 @@ async function addItem(){
   const commentInput=el("comment");
 
   let izoh=(payIzoh.value||"").trim();
-  let rate=toNumber(rateInput.value || 1) || 1;
-  let p=toNumber(planInput.value||0)*rate;
-  let f=toNumber(factInput.value||0)*rate;
+  let rate=toNumber(rateInput.value)||1;
+  let p=toNumber(planInput.value)*rate;
+  let f=toNumber(factInput.value)*rate;
 
   if(!izoh){
     alert("Izoh yozing");
@@ -408,7 +373,7 @@ async function addItem(){
 
   const item = {
     id: "ID-" + Date.now(),
-    date: dateInput.value,
+    date: normalizeDate(dateInput.value),
     month: normalizeMonth(monthInput.value, dateInput.value),
     name: izoh,
     category: categoryInput.value,
@@ -430,37 +395,39 @@ async function addItem(){
   factInput.value="";
   commentInput.value="";
 
-  try {
+  try{
     await postToSheet("addItem", item);
-    setTimeout(loadItems, 1200);
+    setTimeout(loadFromSheets, 1500);
     alert("✅ Google Sheetsga saqlandi");
-  } catch (err) {
+  }catch(err){
     console.error(err);
     alert("Ma’lumot ekranga qo‘shildi, lekin Google Sheetsga yuborishda xatolik bo‘ldi.");
   }
 }
 
 async function delItem(id){
-  if(!confirm("Maʼlumot o‘chirilsinmi?")) return;
+  if(!confirm("Maʼlumot saytdan va Google Sheetsdan o‘chirilsinmi?")) return;
 
   db.items = db.items.filter(x => String(x.id) !== String(id));
   render();
 
-  try {
-    await postToSheet("deleteItem", { id });
-    setTimeout(loadItems, 1200);
-  } catch (err) {
+  try{
+    await postToSheet("deleteItem", {id});
+    setTimeout(loadFromSheets, 1500);
+  }catch(err){
     console.error(err);
     alert("O‘chirish Google Sheetsga yuborilmadi.");
   }
 }
 
+function activeMonth(){
+  return el("filterMonth").value || new Date().toISOString().slice(0,7);
+}
+
 function filtered(){
   return db.items.filter(x=>{
     let ok=true;
-    const selectedMonth = el("filterMonth").value;
-    const itemMonth = normalizeMonth(x.month, x.date);
-    if(selectedMonth) ok = ok && (itemMonth === selectedMonth || !itemMonth);
+    if(el("filterMonth").value) ok = ok && normalizeMonth(x.month, x.date) == el("filterMonth").value;
     if(el("filterCategory").value!="Hammasi") ok = ok && x.category == el("filterCategory").value;
     if(el("filterAccount").value!="Hammasi") ok = ok && x.account == el("filterAccount").value;
     if(el("filterStatus").value!="Hammasi") ok = ok && x.status == el("filterStatus").value;
@@ -468,224 +435,181 @@ function filtered(){
   });
 }
 
-let mainChart,catChart;
+function monthItems(){
+  const m = activeMonth();
+  return db.items.filter(x => normalizeMonth(x.month, x.date) == m);
+}
 
+let mainChart,catChart;
 function render(){
   loadSelects();
 
-  let arr=filtered(), p=0, f=0;
+  let arr=filtered(), monthArr=monthItems(), p=0, f=0;
+
   el("rows").innerHTML="";
-
   arr.forEach((x)=>{
-    const plan = toNumber(x.plan);
-    const fact = toNumber(x.fact);
-    p += plan;
-    f += fact;
+    let xp = toNumber(x.plan);
+    let xf = toNumber(x.fact);
+    el("rows").innerHTML+=`<tr><td>${x.date||""}</td><td>${normalizeMonth(x.month,x.date)||""}</td><td>${x.name||""}</td><td>${x.category||""}</td><td>${x.account||""}</td><td>${money(xp)}</td><td>${money(xf)}</td><td>${money(xp-xf)}</td><td><span class="badge">${x.status||""}</span></td><td>${x.comment||""}</td><td><button class="iconbtn delete" onclick="delItem('${x.id}')">🗑️</button></td></tr>`;
+  });
 
-    el("rows").innerHTML += `
-      <tr>
-        <td>${normalizeDate(x.date)}</td>
-        <td>${normalizeMonth(x.month, x.date)}</td>
-        <td>${x.name || ""}</td>
-        <td>${x.category || ""}</td>
-        <td>${x.account || ""}</td>
-        <td>${money(plan)}</td>
-        <td>${money(fact)}</td>
-        <td>${money(plan - fact)}</td>
-        <td><span class="badge">${x.status || ""}</span></td>
-        <td>${x.comment || ""}</td>
-        <td><button class="iconbtn delete" onclick="delItem('${x.id}')">🗑️</button></td>
-      </tr>`;
+  monthArr.forEach(x=>{
+    p += toNumber(x.plan);
+    f += toNumber(x.fact);
   });
 
   el("kPlan").innerText=money(p);
   el("kFact").innerText=money(f);
   el("kDiff").innerText=money(p-f);
-  el("kPercent").innerText=p ? Math.round(f/p*100)+"%" : "0%";
+  el("kPercent").innerText=p?Math.round(f/p*100)+"%":"0%";
 
-  el("nearPayments").innerHTML = db.items
+  el("nearPayments").innerHTML=db.items
     .slice()
     .sort((a,b)=>new Date(normalizeDate(a.date))-new Date(normalizeDate(b.date)))
     .slice(0,8)
-    .map(x=>`<tr><td>${normalizeDate(x.date)}</td><td>${x.name||""}</td><td>${x.category||""}</td><td>${x.account||""}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status||""}</td></tr>`)
+    .map(x=>`<tr><td>${x.date||""}</td><td>${x.name||""}</td><td>${x.category||""}</td><td>${x.account||""}</td><td>${money(x.plan)}</td><td>${money(x.fact)}</td><td>${x.status||""}</td></tr>`)
     .join("");
 
-  let acc={};
-  db.accounts.forEach(a=>acc[a]={p:0,f:0});
-
-  db.items.forEach(x=>{
+  let acc={};db.accounts.forEach(a=>acc[a]={p:0,f:0});
+  monthArr.forEach(x=>{
     if(!acc[x.account]) acc[x.account]={p:0,f:0};
-    acc[x.account].p += toNumber(x.plan);
-    acc[x.account].f += toNumber(x.fact);
+    acc[x.account].p+=toNumber(x.plan);
+    acc[x.account].f+=toNumber(x.fact);
   });
+  el("accountTable").innerHTML=Object.keys(acc).map(a=>`<tr><td>${a}</td><td>${money(acc[a].p)}</td><td>${money(acc[a].f)}</td><td>${money(acc[a].p-acc[a].f)}</td></tr>`).join("");
 
-  el("accountTable").innerHTML = Object.keys(acc)
-    .map(a=>`<tr><td>${a}</td><td>${money(acc[a].p)}</td><td>${money(acc[a].f)}</td><td>${money(acc[a].p-acc[a].f)}</td></tr>`)
+  el("topCosts").innerHTML=monthArr
+    .slice()
+    .sort((a,b)=>toNumber(b.plan)-toNumber(a.plan))
+    .slice(0,10)
+    .map(x=>`<tr><td>${x.name||"-"}</td><td>${money(x.plan)}</td></tr>`)
     .join("");
 
-  el("topCosts").innerHTML = db.items
-    .slice()
-    .sort((a,b)=>itemAmount(b)-itemAmount(a))
-    .slice(0,10)
-    .map(x=>`<tr><td>${x.name||"-"}<br><span class="small">${x.category||""} • ${x.account||""}</span></td><td><b>${money(itemAmount(x))}</b><br><span class="small">Plan: ${money(x.plan)} | Fakt: ${money(x.fact)}</span></td></tr>`)
-    .join("") || `<tr><td>Ma’lumot yo‘q</td><td>${money(0)}</td></tr>`;
-
-  el("lateCosts").innerHTML = db.items
+  el("lateCosts").innerHTML=monthArr
     .filter(x=>x.status=="Kechikdi")
-    .map(x=>`<tr><td>${normalizeDate(x.date)} — ${x.name||""}<br><span class="small">${x.category||""} • ${x.account||""}</span></td><td><b>${money(itemAmount(x))}</b><br><span class="small">Plan: ${money(x.plan)} | Fakt: ${money(x.fact)}</span></td></tr>`)
-    .join("") || `<tr><td>Kechikkan to‘lov yo‘q</td><td>${money(0)}</td></tr>`;
+    .map(x=>`<tr><td>${x.date||""} — ${x.name||""}</td><td>${money(x.plan)}</td></tr>`)
+    .join("");
 
   renderSettings();
   renderCalendar();
 
   let cat={};
-  db.items.forEach(x=>{
-    const category = x.category || "Kategoriya yo‘q";
-    cat[category] = (cat[category] || 0) + itemAmount(x);
-  });
+  monthArr.forEach(x=>cat[x.category]=(cat[x.category]||0)+toNumber(x.plan));
 
-  if(mainChart) mainChart.destroy();
-  if(catChart) catChart.destroy();
+  if(mainChart)mainChart.destroy();
+  if(catChart)catChart.destroy();
 
-  mainChart = new Chart(el("mainChart"), {
+  mainChart=new Chart(el("mainChart"),{
     type:"bar",
-    data:{
-      labels:["Plan","Fakt","Farq"],
-      datasets:[{label:"Summa",data:[p,f,p-f]}]
-    }
+    data:{labels:["Plan","Fakt","Farq"],datasets:[{label:"Summa",data:[p,f,p-f]}]}
   });
 
-  catChart = new Chart(el("catChart"), {
+  catChart=new Chart(el("catChart"),{
     type:"doughnut",
-    data:{
-      labels:Object.keys(cat),
-      datasets:[{data:Object.values(cat)}]
-    }
+    data:{labels:Object.keys(cat),datasets:[{data:Object.values(cat)}]}
   });
 }
 
 function renderCalendar(){
-  let value = el("calMonth").value;
+  let value=el("calMonth").value;
   if(!value) return;
 
-  let [y,m] = value.split("-").map(Number);
-  let days = new Date(y,m,0).getDate();
-
+  let [y,m]=value.split("-").map(Number), days=new Date(y,m,0).getDate();
   el("calendarBox").innerHTML="";
-
-  for(let d=1; d<=days; d++){
+  for(let d=1;d<=days;d++){
     let ds=`${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
     let payments=db.items.filter(x=>normalizeDate(x.date)==ds);
-
-    el("calendarBox").innerHTML += `
-      <div class="day">
-        <b>${d}</b>
-        ${payments.map(p=>`<div class="pay">${p.name||""}<br>${money(p.plan)}</div>`).join("")}
-      </div>`;
+    el("calendarBox").innerHTML+=`<div class="day"><b>${d}</b>${payments.map(p=>`<div class="pay">${p.name||""}<br>${money(p.plan)}</div>`).join("")}</div>`;
   }
 }
 
 function renderSettings(){
-  el("catList").innerHTML = db.categories
-    .map((x,i)=>`<div class="list-item"><b>🏷️ ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editCategory(${i})">✏️</button><button class="iconbtn delete" onclick="deleteCategory(${i})">🗑️</button></div></div>`)
-    .join("");
-
-  el("accList").innerHTML = db.accounts
-    .map((x,i)=>`<div class="list-item"><b>💳 ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editAccount(${i})">✏️</button><button class="iconbtn delete" onclick="deleteAccount(${i})">🗑️</button></div></div>`)
-    .join("");
+  el("catList").innerHTML=db.categories.map((x,i)=>`<div class="list-item"><b>🏷️ ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editCategory(${i})">✏️</button><button class="iconbtn delete" onclick="deleteCategory(${i})">🗑️</button></div></div>`).join("");
+  el("accList").innerHTML=db.accounts.map((x,i)=>`<div class="list-item"><b>💳 ${x}</b><div class="actions"><button class="iconbtn edit" onclick="editAccount(${i})">✏️</button><button class="iconbtn delete" onclick="deleteAccount(${i})">🗑️</button></div></div>`).join("");
 }
 
 async function addCategory(){
   let v=(el("newCat").value||"").trim();
   if(!v) return;
-
-  db.categories.push(v);
+  if(!db.categories.includes(v)) db.categories.push(v);
   el("newCat").value="";
   render();
-
-  await postToSheet("addCategory", {name:v});
-  setTimeout(loadItems, 1200);
+  await postToSheet("addCategory",{name:v});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function addAccount(){
   let v=(el("newAcc").value||"").trim();
   if(!v) return;
-
-  db.accounts.push(v);
+  if(!db.accounts.includes(v)) db.accounts.push(v);
   el("newAcc").value="";
   render();
-
-  await postToSheet("addAccount", {name:v});
-  setTimeout(loadItems, 1200);
+  await postToSheet("addAccount",{name:v});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function editCategory(i){
   let oldName=db.categories[i];
-  let v=prompt("Kategoriya nomini tahrirlang:", oldName);
+  let v=prompt("Kategoriya nomini tahrirlang:",oldName);
   if(!v) return;
-
   v=v.trim();
   if(!v) return;
 
   db.categories[i]=v;
-  db.items.forEach(item=>{ if(item.category===oldName) item.category=v; });
+  db.items.forEach(item=>{if(item.category===oldName)item.category=v});
   render();
 
-  await postToSheet("editCategory", {oldName, newName:v});
-  setTimeout(loadItems, 1200);
+  await postToSheet("editCategory",{oldName,newName:v});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function deleteCategory(i){
   let name=db.categories[i];
   if(!confirm("Kategoriya o‘chirilsinmi?")) return;
-
   db.categories.splice(i,1);
   render();
 
-  await postToSheet("deleteCategory", {name});
-  setTimeout(loadItems, 1200);
+  await postToSheet("deleteCategory",{name});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function editAccount(i){
   let oldName=db.accounts[i];
-  let v=prompt("Hisob raqam nomini tahrirlang:", oldName);
+  let v=prompt("Hisob raqam nomini tahrirlang:",oldName);
   if(!v) return;
-
   v=v.trim();
   if(!v) return;
 
   db.accounts[i]=v;
-  db.items.forEach(item=>{ if(item.account===oldName) item.account=v; });
+  db.items.forEach(item=>{if(item.account===oldName)item.account=v});
   render();
 
-  await postToSheet("editAccount", {oldName, newName:v});
-  setTimeout(loadItems, 1200);
+  await postToSheet("editAccount",{oldName,newName:v});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function deleteAccount(i){
   let name=db.accounts[i];
   if(!confirm("Hisob raqam o‘chirilsinmi?")) return;
-
   db.accounts.splice(i,1);
   render();
 
-  await postToSheet("deleteAccount", {name});
-  setTimeout(loadItems, 1200);
+  await postToSheet("deleteAccount",{name});
+  setTimeout(loadFromSheets,1500);
 }
 
 async function clearAll(){
-  if(!confirm("Google Sheetsdagi barcha plan/fakt maʼlumotlari o‘chsinmi?")) return;
-
+  if(!confirm("Hammasi o‘chsinmi? Google Sheetsdagi ma’lumotlar ham tozalanadi.")) return;
   db.items=[];
   render();
 
-  await postToSheet("clearItems", {});
-  setTimeout(loadItems, 1200);
+  await postToSheet("clearItems",{});
+  setTimeout(loadFromSheets,1500);
 }
 
 loadSelects();
 render();
-loadItems();
+loadFromSheets();
 </script>
 </body>
 </html>
